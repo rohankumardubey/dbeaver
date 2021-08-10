@@ -1633,6 +1633,7 @@ public class UIUtils {
         return null;
     }
 
+    @Nullable
     public static Shell getActiveWorkbenchShell() {
         IWorkbench workbench = PlatformUI.getWorkbench();
         IWorkbenchWindow window = workbench.getActiveWorkbenchWindow();

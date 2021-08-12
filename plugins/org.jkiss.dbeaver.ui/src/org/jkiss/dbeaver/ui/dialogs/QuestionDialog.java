@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jkiss.dbeaver.ui.dialogs.confirmations;
+package org.jkiss.dbeaver.ui.dialogs;
 
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.IDialogConstants;
@@ -22,7 +22,6 @@ import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.layout.GridLayoutFactory;
 import org.eclipse.jface.layout.LayoutConstants;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -31,43 +30,75 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.model.DBPImage;
 import org.jkiss.dbeaver.ui.DBeaverIcons;
+import org.jkiss.dbeaver.ui.UIUtils;
 import org.jkiss.utils.CommonUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-final class ConfirmationDialogModern<ANSWER> extends Dialog {
+final class QuestionDialog extends Dialog {
     @Nullable
     private String title;
     @Nullable
     private String message;
     @Nullable
-    private List<ANSWER> answers;
+    private List<String> labels;
     private int defaultAnswerIdx;
-    @NotNull
-    private Function<ANSWER, String> labelExtractor = ANSWER::toString;
-    @NotNull
-    private Function<Composite, Composite> customAreaProvider = (c) -> null;
     @Nullable
-    private DBPImage image;
+    private Function<? super Composite, ? extends Composite> customAreaProvider;
     @Nullable
     private DBPImage titleImage;
+    @Nullable
+    private DBPImage primaryImage;
 
     @Nullable
     private List<Button> buttons;
 
-    ConfirmationDialogModern(@Nullable Shell parentShell) {
+    QuestionDialog(@Nullable Shell parentShell) {
         super(parentShell);
     }
+
+    void setTitle(@Nullable String title) {
+        this.title = title;
+    }
+
+    void setMessage(@Nullable String message) {
+        this.message = message;
+    }
+
+    void setPrimaryImage(@NotNull DBPImage primaryImage) {
+        this.primaryImage = primaryImage;
+    }
+
+    void setTitleImage(@NotNull DBPImage titleImage) {
+        this.titleImage = titleImage;
+    }
+
+    void setLabels(@NotNull List<String> labels) {
+        this.labels = labels;
+    }
+
+    void setDefaultAnswerIdx(int defaultAnswerIdx) {
+        this.defaultAnswerIdx = defaultAnswerIdx;
+    }
+
+    void setCustomAreaProvider(@NotNull Function<? super Composite, ? extends Composite> customAreaProvider) {
+        this.customAreaProvider = customAreaProvider;
+    }
+
+    // ----- jface.Dialog methods
 
     protected Control createContents(Composite parent) {
         initializeDialogUnits(parent);
         Point defaultSpacing = LayoutConstants.getSpacing();
-        GridLayoutFactory.fillDefaults().margins(LayoutConstants.getMargins())
-                .spacing(defaultSpacing.x * 2,
-                        defaultSpacing.y).numColumns(2).applyTo(parent); //fixme
-
+        GridLayoutFactory.fillDefaults()
+            .margins(LayoutConstants.getMargins())
+            .spacing(
+                defaultSpacing.x * 2,
+                defaultSpacing.y)
+            .numColumns(2)
+            .applyTo(parent); //fixme
         GridDataFactory.fillDefaults().grab(true, true).applyTo(parent); //fixme
         dialogArea = createDialogArea(parent);
         buttonBar = createButtonBar(parent);
@@ -77,26 +108,26 @@ final class ConfirmationDialogModern<ANSWER> extends Dialog {
 
     @Override
     protected Control createDialogArea(Composite parent) {
-        // add main image
-        if (image != null) {
-            Image swtImage = DBeaverIcons.getImage(image);
-            Label imageLabel = new Label(parent, SWT.NULL);
-            swtImage.setBackground(imageLabel.getBackground());
-            imageLabel.setImage(swtImage);
-            GridDataFactory.fillDefaults().align(SWT.CENTER, SWT.BEGINNING).applyTo(imageLabel); //fixme
+        if (primaryImage != null) {
+            UIUtils.createLabel(parent, primaryImage);
         }
-
-        //add message
         if (message != null) {
             Label messageLabel = new Label(parent, SWT.WRAP);
             messageLabel.setText(message);
+            //GridData gd = new GridData();
+        }
+        //add message
+        if (message != null) {
+            Control messageLabel = new Label(parent, SWT.WRAP);
             GridDataFactory
-                    .fillDefaults()
-                    .align(SWT.FILL, SWT.BEGINNING)
-                    .grab(true, false)
-                    .hint(
-                            convertHorizontalDLUsToPixels(IDialogConstants.MINIMUM_MESSAGE_AREA_WIDTH),
-                            SWT.DEFAULT).applyTo(messageLabel);
+                .fillDefaults()
+                .align(SWT.FILL, SWT.BEGINNING)
+                .grab(true, false)
+                .hint(
+                    convertHorizontalDLUsToPixels(IDialogConstants.MINIMUM_MESSAGE_AREA_WIDTH),
+                    SWT.DEFAULT
+                )
+                .applyTo(messageLabel); //fixme;
         }
 
         // create the top level composite for the dialog area fixme
@@ -109,11 +140,14 @@ final class ConfirmationDialogModern<ANSWER> extends Dialog {
         data.horizontalSpan = 2;
         composite.setLayoutData(data);
 
-        Composite customArea = customAreaProvider.apply(composite);
-//        if (customArea == null) {
-//            //If it is null create a dummy label for spacing purposes
-//            customArea = new Label(composite, SWT.NULL); TODO
-//        }
+        Composite customArea = null;
+        if (customAreaProvider != null) {
+            customArea = customAreaProvider.apply(composite);
+        }
+        if (customArea == null) {
+//          If it is null create a dummy label for spacing purposes
+            new Label(composite, SWT.NULL);
+        }
 
         return composite;
     }
@@ -121,12 +155,8 @@ final class ConfirmationDialogModern<ANSWER> extends Dialog {
     @Override
     protected Control createButtonBar(@NotNull Composite parent) {
         Composite composite = new Composite(parent, SWT.NONE);
-        GridLayoutFactory.fillDefaults().numColumns(0) // this is incremented
-                // by createButton
-                .equalWidth(true).applyTo(composite); //fixme
-
-        GridDataFactory.fillDefaults().align(SWT.END, SWT.CENTER).span(2, 1)
-                .applyTo(composite); //fixme
+        GridLayoutFactory.fillDefaults().numColumns(0).equalWidth(true).applyTo(composite); //fixme
+        GridDataFactory.fillDefaults().align(SWT.END, SWT.CENTER).span(2, 1).applyTo(composite); //fixme
         composite.setFont(parent.getFont());
         createButtonsForButtonBar(composite);
         return composite;
@@ -143,14 +173,12 @@ final class ConfirmationDialogModern<ANSWER> extends Dialog {
 
     @Override
     protected void createButtonsForButtonBar(Composite parent) {
-        if (answers == null) {
+        if (labels == null) {
             return;
         }
-        buttons = new ArrayList<>(answers.size());
-        for (int i = 0; i < answers.size(); i++) {
-            ANSWER answer = answers.get(i);
-            String label = labelExtractor.apply(answer);
-            buttons.add(createButton(parent, i, label, defaultAnswerIdx == i));
+        buttons = new ArrayList<>(labels.size());
+        for (int i = 0; i < labels.size(); i++) {
+            buttons.add(createButton(parent, i, labels.get(i), defaultAnswerIdx == i));
         }
     }
 
